@@ -1,0 +1,6 @@
+[submodule "server/vendor/protobuf"]
+	path = server/vendor/protobuf
+	url = https://github.com/protocolbuffers/protobuf
+[submodule "server/vendor/nakama-common"]
+	path = server/vendor/nakama-common
+	url = https://github.com/heroiclabs/nakama-common
