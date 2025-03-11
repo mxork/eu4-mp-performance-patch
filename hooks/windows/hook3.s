@@ -90,7 +90,10 @@ hook3:
   mov ebx, r15d
 
   .jump_to_original_else_branch:
-  mov rbx, 0x1407458f5
+  ; mov rbx, 0x1407458f5 # this
+  ; mov rbx, 0x1407458f5 # this
+  mov rbx, QWORD PTR .refptr.hook3returnalt[rip]
+  mov rbx, [rbx]
   jmp rbx;
 
   #.abnormal_jump:
@@ -107,3 +110,8 @@ hook3:
   .linkonce	discard
   .refptr.hook3return:
   .quad	hook3return
+  .section	.rdata$.refptr.hook3returnalt, "dr"
+  .globl	.refptr.hook3returnalt
+  .linkonce	discard
+  .refptr.hook3returnalt:
+  .quad	hook3returnalt
