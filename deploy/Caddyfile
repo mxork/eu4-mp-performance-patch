@@ -1,0 +1,52 @@
+{
+	#debug
+}
+
+:443 {
+	tls /var/lib/caddy/server.crt /var/lib/caddy/server.key
+	#tls_timeout 10s
+	#tls_server_name 34.152.37.181 
+
+	reverse_proxy {
+		to 127.0.0.1:7350
+
+		# low latency mode, apparently
+		flush_interval     -1
+
+		#request_buffers    <size>
+		#response_buffers   <size>
+
+		stream_timeout     24h
+		#stream_close_delay <duration>
+
+		transport http {
+			# I don't know if this is necessary, but the defaul of 4KiB makes me nervous
+			read_buffer             16KiB
+			write_buffer            16KiB
+
+			# max_response_header     <size>
+			# proxy_protocol          v1|v2
+			# dial_timeout            <duration>
+			# dial_fallback_delay     <duration>
+			# response_header_timeout <duration>
+			# expect_continue_timeout <duration>
+			# resolvers <ip...>
+
+			#tls
+			# tls_client_auth <automate_name> | <cert_file> <key_file>
+			# tls_insecure_skip_verify
+			# tls_curves <curves...>
+			# tls_trust_pool <module>
+			# tls_renegotiation <level>
+			# tls_except_ports <ports...>
+			# keepalive [off|<duration>]
+			# keepalive_interval <interval>
+			# keepalive_idle_conns <max_count>
+			# keepalive_idle_conns_per_host <count>
+			# versions <versions...>
+			# compression off
+			# max_conns_per_host <count>
+			# forward_proxy_url <url>
+		}
+	}
+}
