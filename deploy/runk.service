@@ -1,0 +1,24 @@
+[Unit]
+Description=EU4 server
+After=network.target network-online.target
+Requires=network-online.target
+
+[Service]
+Type=exec
+ExecStart=/usr/local/bin/runk
+Restart=always
+TimeoutSec=10
+RestartSec=5
+RestartSteps=5
+RestartMaxDelaySec=120
+
+User=caddy
+Group=caddy
+PrivateTmp=true
+ProtectSystem=full
+
+Environment=RUNK_LISTEN_ADDR=127.0.0.1:7350 FORCE_JWT_VERIFY=
+
+[Install]
+WantedBy=multi-user.target
+
