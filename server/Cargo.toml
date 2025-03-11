@@ -12,6 +12,11 @@ path = "src/main.rs"
 name = "tickler"
 path = "src/tickler.rs"
 
+[profile.release]
+strip = true
+lto = true
+codegen-units = 1
+
 [dependencies]
 anyhow = "1.0.96"
 arcstr = { version = "1.2.0", features = ["serde"] }

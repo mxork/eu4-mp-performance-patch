@@ -115,6 +115,7 @@ async fn main() -> anyhow::Result<()> {
 // dispatch to either handle_authenticate or handle_websocket
 async fn handle_request(state: Arc<State>, addr: SocketAddr, mut request: Request<Incoming>)
     ->  Rslt<Response<Full<Bytes>>> {
+    debug!("handle request");
     if hyper_tungstenite::is_upgrade_request(&request) {
         info!("websocket connection from {}", addr);
         let token = request.uri().query()
@@ -128,8 +129,15 @@ async fn handle_request(state: Arc<State>, addr: SocketAddr, mut request: Reques
         ;
         debug!("websocket connect with token {} {}", addr, token);
 
-        let key: Hmac<Sha256> = Hmac::new_from_slice(SECRET)?;
-        let token: jwt::Token<jwt::Header, json::Map<String, json::Value>, _> = token.verify_with_key(&key).unwrap();
+        let token: jwt::Token<jwt::Header, json::Map<String, json::Value>, jwt::Unsigned> = {
+            if std::env::var("FORCE_JWT_VERIFY").is_ok() {
+                let key: Hmac<Sha256> = Hmac::new_from_slice(SECRET)?;
+                let token: jwt::Token<jwt::Header, json::Map<String, json::Value>, _> = token.verify_with_key(&key).expect("jwt failed verification");
+                token.remove_signature()
+            } else {
+                jwt::Token::parse_unverified(&token).unwrap().remove_signature()
+            }
+        };
 
         let (response, websocket) = hyper_tungstenite::upgrade(&mut request, None).expect("fail to upgrade");
         tokio::spawn(async move {
@@ -466,6 +474,9 @@ impl PeerHandler {
             Some(rt::envelope::Message::Pong(_)) => {
                 debug!("pong");
             }
+
+            // :todo hotjoining requires suspending and waiting for confirmation
+            //       from host.
             Some(rt::envelope::Message::MatchJoin(join)) => {
                 if let Some(rt::match_join::Id::MatchId(match_id)) = join.id {
                     // :todo more validation
