@@ -25,7 +25,6 @@ void libpatcher_init() {
       _mode = normal;
     } else if (strcmp(envvar, "disabled") == 0) {
       info("mode: disabled\n");
-      _mode = normal;
       _mode = disabled;
       return;
     } else if (strcmp(envvar, "force_enabled") == 0) {
@@ -158,6 +157,16 @@ void dopatch() {
   log("applying patch\n");
   void* base0 = (void*) 0x13c964e;
   void* base = _Z13CalcChecksumsI14CBasicChecksumEvPK10CGameStateR6CArrayIT_E;
+
+  char* gitchecksum = base+(((void*)0x271ed8b)-(void*)base0);
+  char* gitchecksumexpected = "  f2de20fd7cc5d735418b384c759d491d\n";
+  if (strncmp(gitchecksum, gitchecksumexpected, 64) != 0) {
+    log("git checksum does not match expected\n");
+    log("refusing to apply patch\n");
+    _mode = disabled;
+    return;
+  }
+
   do1patch(base+(((void*)0x13c96cd)-base0), 18, hook1, &hook1return);
   do1patch(base+(((void*)0x13c9ef0)-base0), 18, hook2, &hook2return);
   do1patch(base+(((void*)0x13cbab5)-base0), 18, hook3, &hook3return);

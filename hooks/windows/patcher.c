@@ -25,7 +25,6 @@ void _log(const char *format, ...) {
     log_output = fopen("patcher.log", "w");
     if (!log_output) {
         perror("Failed to open patcher log file");
-        exit(1); // :todo consider not doing this in release
     }
   }
 
@@ -63,7 +62,6 @@ void libpatcher_init() {
       _mode = normal;
     } else if (strcmp(envvar, "disabled") == 0) {
       info("mode: disabled\n");
-      _mode = normal;
       _mode = disabled;
       return;
     } else if (strcmp(envvar, "force_enabled") == 0) {
@@ -100,20 +98,7 @@ bool get_enabled() {
   return atomic_load(enabled);
 }
 
-// atomic_bool enabled0;
-// atomic_bool* enabled = &enabled0;
-// void alloc_enabled() {
-//   atomic_init(enabled, false);
-// }
-// void set_enabled(bool value) {
-//   atomic_store(enabled, value);
-// }
-// bool get_enabled() {
-//   return atomic_load(enabled);
-// }
-
 int get_current_day_of_month() {
-  // void** currentGameStateOffset = (void**)0x00233fe78;
   const void* state = *(void**)(module_base+0x233fe78);
   const int currentDayOfMonthOffset = 0x1de4;
   int32_t current_day = *((int32_t*)(state+currentDayOfMonthOffset));
@@ -242,7 +227,12 @@ void dopatch() {
   debug("module handle:              %p\n", module);
   debug("SDL_vsnprintf addr:         %p\n", thaddr);
   debug("SDL_vsnprintf addr (orig):  %s\n", "0x17361a0");
-  assert(((((void*)thaddr)-((void*)module)) == 0x17361a0) && "address of SDL_vsnprintf didn't match expected");
+  if ((((void*)thaddr)-((void*)module_base)) != 0x17361a0) {
+    log("address of SDL_vsnprintf didn't match expected\n");
+    log("refusing to apply patch\n");
+    _mode = disabled;
+    return;
+  }
 
   // now dump some bytes and check they match
   // calc checksums 0x140743aa0
@@ -251,8 +241,22 @@ void dopatch() {
   // void* calcchecksums_addr = (void*)0x140743aa0;
   void* calcchecksums_addr = module_base + 0x743aa0;
   debug("calcchecksums_addr: %p\n", calcchecksums_addr);
-  dumphex(calcchecksums_addr, 10);
-  assert((*((uint64_t*)calcchecksums_addr) == 0x4c89481024548948) && "bytes at calcchecksums_addr did not match expected");
+  dumphex(calcchecksums_addr, 8);
+  if (*((uint64_t*)calcchecksums_addr) != 0x4c89481024548948) {
+    log("bytes at calcchecksums_addr did not match expected\n");
+    log("refusing to apply patch\n");
+    _mode = disabled;
+    return;
+  }
+
+  char* gitchecksum = module_base + 0x1d2ffd8;
+  char* gitchecksumexpected = "  f2de20fd7cc5d735418b384c759d491d\n";
+  if (strncmp(gitchecksum, gitchecksumexpected, 64) != 0) {
+    log("git checksum does not match expected\n");
+    log("refusing to apply patch\n");
+    _mode = disabled;
+    return;
+  }
 
   // constant patch
   // province loop count start 0x140743e48
