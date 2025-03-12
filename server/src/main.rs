@@ -131,7 +131,7 @@ async fn handle_request(state: Arc<State>, addr: SocketAddr, mut request: Reques
 
         let token: jwt::Token<jwt::Header, json::Map<String, json::Value>, jwt::Unsigned> = {
             if std::env::var("FORCE_JWT_VERIFY").is_ok() {
-                let key: Hmac<Sha256> = Hmac::new_from_slice(SECRET)?;
+                let key: Hmac<Sha256> = Hmac::new_from_slice(&SECRET)?;
                 let token: jwt::Token<jwt::Header, json::Map<String, json::Value>, _> = token.verify_with_key(&key).expect("jwt failed verification");
                 token.remove_signature()
             } else {
@@ -167,7 +167,10 @@ async fn handle_request(state: Arc<State>, addr: SocketAddr, mut request: Reques
 
 // :todo add http basic auth
 // :note I don't really know what Full is doing, I'm cargo culting
-static SECRET: &[u8] = b"static.secret.6e686bff502ba7a2";
+use lazy_static::lazy_static;
+lazy_static! {
+    static ref SECRET: Vec<u8> = std::env::var("JWT_SECRET").unwrap_or("static.secret.6e686bff502ba7a2".to_owned()).into_bytes();
+}
 async fn handle_authenticate(request: Request<Incoming>) -> Response<Full<Bytes>> {
     // payload
     // {
@@ -213,7 +216,7 @@ async fn handle_authenticate(request: Request<Incoming>) -> Response<Full<Bytes>
         type_: Some(jwt::header::HeaderType::JsonWebToken),
         ..jwt::Header::default()
     };
-    let key: Hmac<Sha256> = Hmac::new_from_slice(SECRET).unwrap();
+    let key: Hmac<Sha256> = Hmac::new_from_slice(&SECRET).unwrap();
     let token = jwt::Token::new(headers, claims).sign_with_key(&key).unwrap().as_str().to_string();
     let refresh_token = format!("{}_44", token); // shiiit, man. I don't make the rules.
     let response = Response::builder()
