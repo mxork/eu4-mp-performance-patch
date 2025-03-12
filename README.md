@@ -48,6 +48,12 @@ should still be better-than-official. Eliminating the process latency compensate
 
 If you have a group in another region and want to try it out, let me know (I'm monitoring the eu4-modding discord). Deploying another server is cheap, quick, easy.
 
+### Building
+
+As much as possible, I've tried to make building everything straight-forward. `runk` and `libpatcher` both have Docker build files included, mostly as a reference, but also as a check to make sure my machine didn't have any magical state tainting the process.
+
+That said, building the `nakama-cpp` library is a real pain, particularly on windows. I can't remember all the dark twists and turns I went through to get my toolchains set up properly, so if you need assistance, messaging me is probably more useful than any documentation I can write here.
+
 ## Limitations
 
 `runk` does the bare minimum to emulate the official Nakama servers. Currently, it does *not* support:
