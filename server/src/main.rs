@@ -356,6 +356,35 @@ impl PeerHandler {
         }
     }
 
+    async fn send_to_presences(&self, message: rt::envelope::Message, presences: Vec<rt::UserPresence>) {
+        trace!("sending out to everyone *except* sender {:?}", message);
+        // :todo could lift this
+        let PeerHandler(state, our_id) = self;
+        let us = state.peers.get(our_id).expect("we don't exist");
+        let match_id = us.match_id.clone().expect("not in a match");
+        let the_match = get_match(&state, &match_id).expect("match does not exist");
+
+        let senders = the_match.peers.iter().filter_map(
+            |e| {
+                let id = e.key();
+                if id == our_id {
+                    return None;
+                }
+                if !presences.iter().any(|p| e.key() == &p.session_id) {
+                    return None;
+                }
+                if let Some(peer) = state.peers.get(id) {
+                    return Some(peer.sender.clone());
+                } else {
+                    // disconnected, presumably
+                    return None;
+                }
+            }
+        );
+
+        PeerHandler::send_to(message, senders).await;
+    }
+
     async fn send_everybody_else(&self, message: rt::envelope::Message) {
         trace!("sending out to everyone *except* sender {:?}", message);
         // :todo could lift this
@@ -562,8 +591,8 @@ impl PeerHandler {
             Some(rt::envelope::Message::MatchDataSend(data)) => {
                 // :todo currently ignoring the specified presences
                 debug!("match data");
-                let rt::MatchDataSend {match_id, op_code, data, presences: _, reliable} = data;
-                self.send_everybody_else(
+                let rt::MatchDataSend {match_id, op_code, data, presences, reliable} = data;
+                let message =
                     rt::envelope::Message::MatchData(
                         rt::MatchData{
                             match_id: match_id.clone(),
@@ -572,8 +601,16 @@ impl PeerHandler {
                             reliable,
                             data,
                             ..rt::MatchData::default()
-                        }),
-                ).await;
+                        });
+                // :note I'm like 90% that eu4 doesn't ever specify a list
+                //       of presences. whether that's because its just aggressively
+                //       broadcasting everything or the server determines the correct
+                //       recipients, I'm unsure.
+                if presences.is_empty() {
+                    self.send_everybody_else(message).await;
+                } else {
+                    self.send_to_presences(message, presences).await;
+                }
             }
 
             Some(rt::envelope::Message::Rpc(api::Rpc{id, payload, http_key: _})) => {
