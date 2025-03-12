@@ -14,6 +14,7 @@ workdir /build/windows
 run ./build
 
 run mkdir -p /build/out
+run cp /build/linux/libpatcher.so /build/out/libpatcher.so
 run cp /build/linux/libpatcher.a /build/out/libpatcher.a
 run cp /build/windows/libpatcher.dll /build/out/libpatcher.dll
 run cp /build/windows/libpatcher.dll.lib /build/out/libpatcher.dll.lib
