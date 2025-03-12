@@ -71,4 +71,5 @@ The publicly-available runk server is deployed on a temporary basis for users to
 
 This mod changes the default lag-behind thresholds, which you might want if running at high speeds:
 
-https://steamcommunity.com/sharedfiles/filedetails/?id=3436026874
+- https://steamcommunity.com/sharedfiles/filedetails/?id=3436026874
+- https://mods.paradoxplaza.com/mods/103262/Any
