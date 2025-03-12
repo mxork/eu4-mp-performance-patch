@@ -41,6 +41,13 @@ EU4 multiplayer performance is mostly determined by three factors:
 
 `runk` eliminates most processing latency from the server by immediately forwarding match data when received. The DLL patch reduces the frequency of checksums to once a week, rather than every day. An optional steam mod (linked below) adjusts the `DAYS_BEHIND*` settings to be more forgiving.
 
+### Note on the public server
+
+The cloud instance is running in some north-eastern North American Google cloud region. Latency improvements won't be as impressive if you are on another continent, but Western Europe
+should still be better-than-official. Eliminating the process latency compensates for the longer round-trip.
+
+If you have a group in another region and want to try it out, let me know (I'm monitoring the eu4-modding discord). Deploying another server is cheap, quick, easy.
+
 ## Limitations
 
 `runk` does the bare minimum to emulate the official Nakama servers. Currently, it does *not* support:
