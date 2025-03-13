@@ -31,6 +31,19 @@ eu4.exe  -nakamamp -unofficialmp -nakama_host='localhost' -nakama_key='defaultke
 
 If you want to run the server on the internet, I *strongly* recommend putting a TLS-capable reverse proxy in front of runk. I used Caddy. You can find a copy of my Caddyfile in the `deploy` folder.
 
+### Version compatibility
+
+Written against `EU4 v1.37.5.0 Inca`, steam version.
+
+MD5 of executables:
+
+```
+ba1e6957fff90d306e3f40a5388fc925  eu4     linux
+5af10c50faebd12408149a3a27deffcb  eu4.exe windows
+```
+
+The patcher performs sanity checks before applying the patch. If it fails, it will log `refusing to apply patch`. Logs go to stderr on linux and `patcher.log` on windows.
+
 ## Details
 
 EU4 multiplayer performance is mostly determined by three factors:
