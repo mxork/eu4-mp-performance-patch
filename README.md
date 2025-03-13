@@ -13,8 +13,9 @@ Windows and Linux versions are posted. Both were written and tested against the 
 To try it out, you need to place the two libraries (nakama-cpp and libpatcher) into your game folder, then start the game with Nakama MP enabled and :
 
 ```
-# or you can select Nakama MP from the steam launcher and add `-unofficialmp` to the launch options
-eu4.exe -nakamamp -unofficialmp
+# gotcha: if you use the paradox launcher, it won't pass arguments to the game.
+#         make sure you're calling eu4.exe directly.
+> eu4.exe -nakamamp -unofficialmp
 ```
 
 You should probably back up the original version of the nakama-cpp library.
@@ -26,7 +27,7 @@ If you want to run a local version of the server, the `runk.exe` binary binds to
 ```
 # replace "localhost" with your local IP if it's not recognized.
 # gotcha: you must supply *all* of these arguments for eu4 to use them. you can't omit defaults.
-eu4.exe  -nakamamp -unofficialmp -nakama_host='localhost' -nakama_key='defaultkey' -nakama_port=7350 -nakama_ssl=0
+> eu4.exe  -nakamamp -unofficialmp -nakama_host='localhost' -nakama_key='defaultkey' -nakama_port=7350 -nakama_ssl=0
 ```
 
 If you want to run the server on the internet, I *strongly* recommend putting a TLS-capable reverse proxy in front of runk. I used Caddy. You can find a copy of my Caddyfile in the `deploy` folder.
