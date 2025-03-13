@@ -10,11 +10,11 @@ Windows and Linux versions are posted. Both were written and tested against the 
 
 ## Installation
 
-To try it out, you need to place the two libraries (nakama-cpp and libpatcher) into your game folder, then start the game with Nakama MP enabled:
+To try it out, you need to place the two libraries (nakama-cpp and libpatcher) into your game folder, then start the game with Nakama MP enabled and :
 
 ```
-# or you can select Nakama MP from the steam launcher
-eu4.exe -nakamamp
+# or you can select Nakama MP from the steam launcher and add `-unofficialmp` to the launch options
+eu4.exe -nakamamp -unofficialmp
 ```
 
 You should probably back up the original version of the nakama-cpp library.
@@ -25,8 +25,8 @@ If you want to run a local version of the server, the `runk.exe` binary binds to
 
 ```
 # replace "localhost" with your local IP if it's not recognized.
-# gotcha: you must supply *all* of these arguments for eu4 to use them. you can't omit defaults
-eu4.exe  -nakamamp -nakama_host='localhost' -nakama_key='defaultkey' -nakama_port=7350 -nakama_ssl=0
+# gotcha: you must supply *all* of these arguments for eu4 to use them. you can't omit defaults.
+eu4.exe  -nakamamp -unofficialmp -nakama_host='localhost' -nakama_key='defaultkey' -nakama_port=7350 -nakama_ssl=0
 ```
 
 If you want to run the server on the internet, I *strongly* recommend putting a TLS-capable reverse proxy in front of runk. I used Caddy. You can find a copy of my Caddyfile in the `deploy` folder.
@@ -39,7 +39,7 @@ EU4 multiplayer performance is mostly determined by three factors:
 2. Single-core cpu performance. EU4 is actually quite multi-threaded in single player, but multiplayer runs a checksum on the game state every single day. This is bottle-necked on just one CPU, and is a major reason why multiplayer runs slower.
 3. The settings `DAYS_BEHIND_LOWER_SPEED` and `DAYS_BEHIND_PAUSE` from defines.lua. These have reasonable defaults, but if you have a fast machine or higher network latency to other players in your game, the defaults essentially guarantees you can't run at higher game speeds.
 
-`runk` eliminates most processing latency from the server by immediately forwarding match data when received. The DLL patch reduces the frequency of checksums to once a week, rather than every day. An optional steam mod (linked below) adjusts the `DAYS_BEHIND*` settings to be more forgiving.
+`runk` eliminates most processing latency from the server by immediately forwarding match data when received. The DLL patch turns off the daily checksum. An optional steam mod (linked below) adjusts the `DAYS_BEHIND*` settings to be more forgiving.
 
 ### Note on the public server
 
@@ -64,7 +64,11 @@ That said, building the `nakama-cpp` library is a real pain, particularly on win
 
 And probably a lot else besides starting a game, other players joining (in the lobby), and sending data between players.
 
-On out-of-sync detection: I'm still figuring out how this works in vanilla, but it seems to be driven by the server. The official Nakama server states that it can drop match data messages if its buffers fill up, and I suspect (with low confidence) that this is the main cause of out-of-sync's on official servers.
+## OOS (out-of-sync) detection
+
+I'm still figuring out how this works in vanilla, but it seems to be driven by the server. The official Nakama server states that it can drop match data messages if its buffers fill up, and I suspect (with low confidence) that this is the main cause of OOS on official servers.
+
+It's worth mentioning that the daily checksums are seem to be never (rarely?) used during normal play. I've tried running a vanilla host and a guest with deliberately corrupted checksums on the official servers, and never triggered an OOS. As I said, still figuring out how this is supposed to work.
 
 ## Security
 
