@@ -1,0 +1,13 @@
+#!/bin/bash
+set -ex
+
+mkdir -p _build out
+gcc -fpic -c -o _build/hook1.o linux/hook1.s
+gcc -fpic -c -o _build/hook2.o linux/hook2.s
+gcc -fpic -c -o _build/hook3.o linux/hook3.s
+
+gcc -g -c -fpic -O3 -o _build/linux.o linux.c
+gcc -g -c -fpic -O3 -o _build/common.o common.c
+
+gcc-ar rcs out/libpatcher.a _build/{common.o,linux.o,hook1.o,hook2.o,hook3.o}
+gcc -g -shared -o out/libpatcher.so _build/{common.o,linux.o,hook1.o,hook2.o,hook3.o}

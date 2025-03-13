@@ -1,0 +1,13 @@
+#!/bin/bash
+set -ex
+
+./build-linux
+./build-windows
+
+nakama_linux=../nakama-cpp-eu4/third_party/patcher/linux
+cp out/libpatcher.so $nakama_linux/
+cp patcher.h $nakama_linux/
+
+nakama_windows=../nakama-cpp-eu4/third_party/patcher/windows
+cp out/libpatcher.dll{,.lib} $nakama_windows/
+cp patcher.h $nakama_windows/

@@ -4,28 +4,59 @@
 #include <string.h>
 #include <assert.h>
 #include <stddef.h>
-
-// #include <sys/mman.h>
+#include <stdarg.h>
 #include <windows.h>
 #include <memoryapi.h>
 #include <processthreadsapi.h>
 #include <libloaderapi.h>
 
-#include "patcher.h"
+#include "common.h"
 
-#include <stdarg.h>
+// initialization
+void* module_base = NULL;
 
+#pragma comment(linker, "/SECTION:.shared,RWS")
+#pragma data_seg(".shared")
+atomic_bool enabled0 = false;
+#pragma data_seg()
+atomic_bool* enabled = &enabled0;
+
+
+// init
+void libpatcher_init() {
+  info("libpatcher_init\n");
+  dopatch();
+}
+
+// config
+void cmdline_init() {
+  log("cmdline init\n");
+  _my_argc = __argc;
+  _my_argv = __argv;
+
+  for (int i=0; i<_my_argc; i++) {
+    info("arg %d: %s\n", i, _my_argv[i]);
+  }
+  // LPSTR cmdline = GetCommandLineA();
+  // _my_argv = CommandLineToArgvA(cmdline, &_my_argc);
+  // if (_my_argv == NULL) {
+  //   log("CommandLineToArgvW failed\n");
+  //   exit(1);
+  // }
+}
+
+
+void on_nakama_client_join_match() {
+  // :stub
+}
+//
 // this is a little unsafe, but man am I salty.
 // trying to write to the console is just not happening.
-bool log_output_open_once = false;
+// bool log_output_open_once = false;
 FILE* log_output = NULL;
 void _log(const char *format, ...) {
-  if (!log_output_open_once) {
-    log_output_open_once = true;
+  if (!log_output) {
     log_output = fopen("patcher.log", "w");
-    if (!log_output) {
-        perror("Failed to open patcher log file");
-    }
   }
 
   if (!log_output) {
@@ -37,88 +68,15 @@ void _log(const char *format, ...) {
   vfprintf(log_output, format, args);
   va_end(args);
   fflush(log_output);
+  // fclose(log_output);
 }
 
-void dumphex(uint8_t* start, size_t len) {
-    debug("  ");
-    for (int i=0; i<len; i++)
-      debug("%02x", *(start+i));
-    debug("\n");
-}
-
-__attribute__((constructor))
-void on_load() {
-  libpatcher_init();
-}
-
-enum patcher_mode _mode = normal;
-void libpatcher_init() {
-  info("libpatcher_init\n");
-
-  char* envvar = getenv("PATCHER_MODE");
-  if (envvar && *envvar) {
-    if (strcmp(envvar, "normal") == 0) {
-      info("mode: normal\n");
-      _mode = normal;
-    } else if (strcmp(envvar, "disabled") == 0) {
-      info("mode: disabled\n");
-      _mode = disabled;
-      return;
-    } else if (strcmp(envvar, "force_enabled") == 0) {
-      info("mode: force enabled\n");
-      _mode = force_enabled;
-    } else if (strcmp(envvar, "patched_but_disabled") == 0) {
-      info("mode: patched but disabled\n");
-      _mode = patched_but_disabled;
-    } else {
-      err("PATCHER_MODE: expected mode. got %s\n", envvar);
-      exit(1);
-    }
-  }
-
-  dopatch();
-}
-
-void on_nakama_client_join_match() {
-  if (_mode == normal) {
-    info("patcher normal mode: on nakama client join match, so enabling patch\n");
-    set_enabled(true);
-  }
-}
-
-#pragma comment(linker, "/SECTION:.shared,RWS")
-#pragma data_seg(".shared")
-atomic_bool enabled0 = false;
-#pragma data_seg()
-atomic_bool* enabled = &enabled0;
-void set_enabled(bool value) {
-  atomic_store(enabled, value);
-}
-bool get_enabled() {
-  return atomic_load(enabled);
-}
-
+// dynamic
 int get_current_day_of_month() {
   const void* state = *(void**)(module_base+0x233fe78);
   const int currentDayOfMonthOffset = 0x1de4;
   int32_t current_day = *((int32_t*)(state+currentDayOfMonthOffset));
   return current_day;
-}
-
-bool dynamic_should_run_hook() {
-  switch (_mode) {
-  case normal:
-    int day = 1+get_current_day_of_month();
-    bool ret = get_enabled() && (day % 7 != 0);
-    return ret;
-  case force_enabled:
-    return true;
-  case disabled:
-    assert(false && "dynamic_should_run_hook should never be called if patch wasn't applied");
-    return false;
-  case patched_but_disabled:
-    return false;
-  }
 }
 
 void hook1();
@@ -130,56 +88,6 @@ void* hook2return;
 void hook3();
 void* hook3return;
 void* hook3returnalt;
-
-#define jumplen 14
-void jump_inject(void* target, void* addr) {
-  uint8_t jump[jumplen] = {
-        0x50, // push rax
-        0x48, 0xB8,
-        0, 0, 0, 0, 0, 0, 0, 0,
-        0xFF, 0xE0,
-        0x58, // pop rax
-  };
-
-  // :note, I'm not sure the original was actually a problem
-  // nooooooooooooooooooooooooooo.
-  // alignment, you fool.
-  // *(void**)(jump + 3) = addr;
-  memcpy(((void*)jump)+3,&addr,sizeof(void*));
-  dumphex(jump, jumplen);
-  memcpy(target, jump, jumplen);
-}
-
-void do1patch(
-    void* target,
-    size_t patchsize,
-    void* hook,
-    void** hook_return
-) {
-  debug("patching %p.\n size: %u\n hook: %p\n hook_return (addr): %p\n", target, patchsize, hook, hook_return);
-
-  // tell the hook where to return to
-  *hook_return = target+jumplen-1; // -1 is the pop rax
-  debug("hook return (value): %p\n", *hook_return);
-
-  // unprotect functions
-  unprotect(target, patchsize);
-
-  // clobber target and install jump
-  assert((patchsize >= jumplen) && "not enough room for jump");
-  debug("target (pre) ");
-  dumphex(target, patchsize);
-
-  memset(target, 0x90, patchsize);
-  jump_inject(target, hook);
-  debug("target (post): ");
-  // dumphex(target, patchsize);
-  dumphex(target, patchsize);
-
-  // reprotect functions
-  protect(target, patchsize);
-}
-
 
 // BOOL GetModuleHandleExA(
 //   [in]           DWORD   dwFlags,
@@ -197,7 +105,6 @@ void do1patch(
 //   [in] HMODULE hModule,
 //   [in] LPCSTR  lpProcName
 // );
-void* module_base;
 void dopatch() {
   HMODULE module;
   GetModuleHandleExA(0, NULL, &module);
@@ -230,7 +137,7 @@ void dopatch() {
   if ((((void*)thaddr)-((void*)module_base)) != 0x17361a0) {
     log("address of SDL_vsnprintf didn't match expected\n");
     log("refusing to apply patch\n");
-    _mode = disabled;
+    the_patcher_config.patchmode = disabled;
     return;
   }
 
@@ -245,7 +152,7 @@ void dopatch() {
   if (*((uint64_t*)calcchecksums_addr) != 0x4c89481024548948) {
     log("bytes at calcchecksums_addr did not match expected\n");
     log("refusing to apply patch\n");
-    _mode = disabled;
+    the_patcher_config.patchmode = disabled;
     return;
   }
 
@@ -254,7 +161,7 @@ void dopatch() {
   if (strncmp(gitchecksum, gitchecksumexpected, 64) != 0) {
     log("git checksum does not match expected\n");
     log("refusing to apply patch\n");
-    _mode = disabled;
+    the_patcher_config.patchmode = disabled;
     return;
   }
 

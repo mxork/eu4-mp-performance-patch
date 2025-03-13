@@ -2,3 +2,4 @@
 *.dll
 *.a
 *.lib
+.ccls_cache
