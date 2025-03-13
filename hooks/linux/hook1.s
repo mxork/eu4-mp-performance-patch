@@ -6,6 +6,7 @@
   .type	hook1, @function
 hook1:
   .setup:
+  pop rax
   push rax
   push rcx
   push rdx
