@@ -6,6 +6,7 @@
 #include <stddef.h>
 #include <stdarg.h>
 #include <windows.h>
+#include <errno.h>
 #include <memoryapi.h>
 #include <processthreadsapi.h>
 #include <libloaderapi.h>
@@ -14,6 +15,7 @@
 
 // initialization
 void* module_base = NULL;
+char* _my_argv0[32];
 
 #pragma comment(linker, "/SECTION:.shared,RWS")
 #pragma data_seg(".shared")
@@ -25,24 +27,42 @@ atomic_bool* enabled = &enabled0;
 // init
 void libpatcher_init() {
   info("libpatcher_init\n");
-  dopatch();
 }
 
 // config
 void cmdline_init() {
+  _my_argv = _my_argv0;
   log("cmdline init\n");
-  _my_argc = __argc;
-  _my_argv = __argv;
+  // _my_argc = __argc;
+  // _my_argv = __argv;
+  LPWSTR cmdline = GetCommandLineW();
+  LPWSTR* _argv = CommandLineToArgvW(cmdline, &_my_argc);
+  if (_argv == NULL) {
+    log("CommandLineToArgvW failed\n");
+    exit(1);
+  }
+
+  for (int i=0; i<_my_argc; i++) {
+    // errno_t wcstombs_s(
+    //    size_t *pReturnValue,
+    //    char *mbstr,
+    //    size_t sizeInBytes,
+    //    const wchar_t *wcstr,
+    //    size_t count
+    // );
+    size_t len;
+    char* converted = malloc(128);
+    _my_argv0[i] = converted;
+    errno_t e = wcstombs_s(&len, converted, 128, _argv[i], 127);
+    if (e) {
+      log("failed to convert arg %d\n", i);
+      exit(1);
+    }
+  }
 
   for (int i=0; i<_my_argc; i++) {
     info("arg %d: %s\n", i, _my_argv[i]);
   }
-  // LPSTR cmdline = GetCommandLineA();
-  // _my_argv = CommandLineToArgvA(cmdline, &_my_argc);
-  // if (_my_argv == NULL) {
-  //   log("CommandLineToArgvW failed\n");
-  //   exit(1);
-  // }
 }
 
 
