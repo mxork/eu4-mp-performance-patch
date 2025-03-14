@@ -76,10 +76,21 @@ void the_patcher_config_init() {
         || strncmp(_my_argv[i], "--unofficialmp", 14) == 0) {
       the_patcher_config.patchmode = always;
       the_patcher_config.clientmode = unofficial;
+    } else if (strncmp(_my_argv[i], "-fastmp", 7) == 0
+               || strncmp(_my_argv[i], "--fastmp", 8) == 0) {
+      the_patcher_config.patchmode = always;
+    } else if (strncmp(_my_argv[i], "-patchmode=", 11) == 0) {
     // whether to apply checksum patch and whether to run it
     } else if (strncmp(_my_argv[i], "-patchmode=", 11) == 0) {
+      // hopefully deal with the extra space eu4 tags on
+      char* the_arg = _my_argv[i]+11;
+      long n = strcspn(the_arg, " ");
+      the_arg[n] = '\0';
       the_patcher_config.patchmode = parse_patchmode(_my_argv[i]+11);
     } else if (strncmp(_my_argv[i], "--patchmode=", 12) == 0) {
+      char* the_arg = _my_argv[i]+12;
+      long n = strcspn(the_arg, " ");
+      the_arg[n] = '\0';
       the_patcher_config.patchmode = parse_patchmode(_my_argv[i]+12);
     // whether to intercept default args being passed to createClient
     // and replace with our own defaults
