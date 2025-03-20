@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <sys/mman.h>
 #include <stdarg.h>
+#include <time.h>
 #include <unistd.h>
 #include "common.h"
 
@@ -10,7 +11,9 @@
 void libpatcher_init() {
   info("libpatcher_init\n");
   alloc_enabled();
+  alloc_speedcontroller();
 }
+speedcontroller* the_speedcontroller = NULL;
 
 char* _my_argv0[32];
 void cmdline_init() {
@@ -52,12 +55,26 @@ void _log(const char* format, ...) {
 
 // conveniences for hooks
 extern void* _ZN17CCurrentGameState11GetInstanceEv();
+extern int32_t _ZNK14CGregorianDate12GetTotalDaysEv(void* date);
+const int currentDateOffset = 0x1da0;
+extern int32_t _ZN8NDefines5NGame23DAYS_BEHIND_LOWER_SPEEDE;
 const int currentDayOfMonthOffset = 0x1db4;
 
 int get_current_day_of_month() {
   void* state = _ZN17CCurrentGameState11GetInstanceEv();
   int32_t current_day = *((int32_t*)(state+currentDayOfMonthOffset));
   return current_day;
+}
+
+int get_current_total_days() {
+  void* state = _ZN17CCurrentGameState11GetInstanceEv();
+  void* current_date = (void*)(state+currentDateOffset);
+  int32_t total_days = _ZNK14CGregorianDate12GetTotalDaysEv(current_date);
+  return total_days;
+}
+
+int get_days_behind_lower_speed_setting() {
+  return _ZN8NDefines5NGame23DAYS_BEHIND_LOWER_SPEEDE;
 }
 
 // base address we let the linker tell us about
@@ -76,6 +93,31 @@ void alloc_enabled() {
   atomic_init(enabled, true);
 }
 
+void alloc_speedcontroller() {
+  the_speedcontroller = mmap(NULL, sizeof(speedcontroller),
+      PROT_READ | PROT_WRITE,
+      MAP_SHARED | MAP_ANON, -1, 0);
+  if (enabled == MAP_FAILED) {
+    err("mmap");
+    exit(1);
+  }
+}
+
+#include <errno.h>
+void sleepms(double ms) {
+  usleep(ms*1000);
+}
+double nowms() {
+  // return 0.0;
+  struct timespec ts;
+  int err = clock_gettime(CLOCK_MONOTONIC, &ts);
+  if (err) {
+    log("now err: %d", errno);
+    return 0.0;
+  }
+  return (((double)ts.tv_sec) * 1000.0L) + (((double)ts.tv_nsec) / 1000000.0L);
+}
+
 //
 void hook1();
 void* hook1return;
@@ -85,6 +127,10 @@ void* hook2return;
 
 void hook3();
 void* hook3return;
+
+void hook4();
+void* hook4return;
+void* hook4returnalt;
 
 void unprotect(void* addr, size_t size) {
   size_t pagesize = sysconf(_SC_PAGESIZE);
@@ -139,8 +185,12 @@ void dopatch() {
     return;
   }
 
+  // :todo use this
+  // void* module_base = (void*)(base - base0);
   do1patch(base+(((void*)0x13c96cd)-base0), 18, hook1, &hook1return);
   do1patch(base+(((void*)0x13c9ef0)-base0), 18, hook2, &hook2return);
   do1patch(base+(((void*)0x13cbab5)-base0), 18, hook3, &hook3return);
+  do1patch(base+(((void*)0x1780c32)-base0), 17, hook4, &hook4return);
+  hook4returnalt = (void*)0x1780d79+(base-base0);
 }
 

@@ -20,9 +20,10 @@ char* _my_argv0[32];
 #pragma comment(linker, "/SECTION:.shared,RWS")
 #pragma data_seg(".shared")
 atomic_bool enabled0 = false;
+speedcontroller the_speedcontroller0 = {};
 #pragma data_seg()
 atomic_bool* enabled = &enabled0;
-
+speedcontroller* the_speedcontroller = &the_speedcontroller0;
 
 // init
 void libpatcher_init() {
@@ -99,6 +100,60 @@ int get_current_day_of_month() {
   return current_day;
 }
 
+
+// :note the composition of these two functions
+//       is equivalent to the linux GetTotalDays
+//
+// invocation looks like:
+//
+// mov rcx, r15
+// call 0x1400cfd70
+// imul ebx, eax, 0x16d
+// mov rcx, r15
+// call 0x1400cfe10
+// add ebx, eax
+//
+// so, presumably the first function is get years.
+//
+int32_t (*GetYear)(void*);
+int32_t (*GetDayOfYear)(void*);
+int get_current_total_days() {
+  const void* state = *(void**)(module_base+0x233fe78);
+  const int currentDateOffset = 0x1dd0;
+  void* current_date = (void*)(state+currentDateOffset);
+  int32_t total_years = GetYear(current_date);
+  int32_t total_days0 = GetDayOfYear(current_date);
+  int32_t total_days = total_days0 + (total_years*0x16d);
+  return total_days;
+}
+
+int get_days_behind_lower_speed_setting() {
+  // 0x14233fbfc
+  int lower_speed =  *((int*)(module_base+0x0233fbfc));
+  log("lower_speed setting: %d\n", lower_speed);
+  return lower_speed;
+}
+
+void sleepms(double ms) {
+  Sleep(ms);
+}
+double nowms() {
+  LARGE_INTEGER frequency;
+  QueryPerformanceFrequency(&frequency);
+
+  LARGE_INTEGER t;
+  QueryPerformanceCounter(&t);
+
+  int64_t msf = frequency.QuadPart/1000;
+  int64_t ms = t.QuadPart / msf;
+
+  // doubles have 50 odd bits of precision,
+  // so throw away the top bit.
+  ms %= ((int64_t) 1)<<50;
+
+  return (double) ms;
+}
+
 void hook1();
 void* hook1return;
 
@@ -108,6 +163,11 @@ void* hook2return;
 void hook3();
 void* hook3return;
 void* hook3returnalt;
+
+void hook4();
+void* hook4return;
+void* hook4returnalt;
+void* hook4ndefine;
 
 // BOOL GetModuleHandleExA(
 //   [in]           DWORD   dwFlags,
@@ -185,6 +245,11 @@ void dopatch() {
     return;
   }
 
+  // 0x1400cfd70
+  GetYear = module_base + 0x0cfd70;
+  // 0x1400cfe10
+  GetDayOfYear = module_base + 0x0cfe10;
+
   // constant patch
   // province loop count start 0x140743e48
   // unit loop countstart    0x140744461 to 0x14074446f
@@ -240,6 +305,14 @@ void dopatch() {
   // skip loop addr 0x1407458f5
   do1patch(module_base + 0x745884, 14, hook3, &hook3return);
   hook3returnalt = module_base + 0x7458f5;
+
+  // 0x140b79db2
+  do1patch(module_base + 0xb79db2, 17, hook4, &hook4return);
+  // 0x140b7a01a
+  hook4returnalt = module_base + 0xb7a01a;
+  // 0x14233fc38
+  hook4ndefine = module_base + 0x0233fc38;
+  log("hook4ndefine: %d\n", *((int32_t*)hook4ndefine));
 }
 
 // BOOL VirtualProtect(

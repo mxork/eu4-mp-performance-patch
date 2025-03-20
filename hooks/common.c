@@ -15,6 +15,7 @@ client_settings default_unofficial_client_settings = {
   true,
   false,
 };
+enum speedcontrolmode the_speedcontrolmode = speedcontrol_off;
 
 patcher_config get_patcher_config() { return the_patcher_config; }
 client_settings get_unofficial_client_settings() { return default_unofficial_client_settings; }
@@ -33,6 +34,16 @@ void on_load() {
   if (the_patcher_config.patchmode != disabled) {
     dopatch();
   }
+  if (the_speedcontrolmode == speedcontrol_on) {
+    speedcontroller_set_defaults();
+  }
+}
+
+void speedcontroller_set_defaults() {
+  the_speedcontroller->last_day = -1;
+  the_speedcontroller->last_now = -1;
+  the_speedcontroller->oldest_ping_day = -1;
+  the_speedcontroller->oldest_ping_day_player = -1;
 }
 
 // misc
@@ -63,6 +74,7 @@ enum patchmode parse_patchmode(char* var) {
     exit(1);
   }
 }
+
 
 void the_patcher_config_init() {
   // getopt doesn't support ignoring variables
@@ -98,11 +110,15 @@ void the_patcher_config_init() {
     } else if (strncmp(_my_argv[i], "-useunofficialmpserver", 22) == 0
                || strncmp(_my_argv[i], "--useunofficialmpserver", 23) == 0) {
       the_patcher_config.clientmode = unofficial;
+    } else if (strncmp(_my_argv[i], "-speedcontrol", 13) == 0
+               || strncmp(_my_argv[i], "--speedcontrol", 14) == 0) {
+      the_speedcontrolmode = speedcontrol_on;
     }
   }
 
-  log("patch mode:  %s\n", unparse_patchmode(the_patcher_config.patchmode));
-  log("client mode: %s\n", the_patcher_config.clientmode == official ? "official" : "unofficial");
+  log("patch mode:          %s\n", unparse_patchmode(the_patcher_config.patchmode));
+  log("client mode:         %s\n", the_patcher_config.clientmode == official ? "official" : "unofficial");
+  log("speed control mode:  %s\n", the_speedcontrolmode == speedcontrol_on ? "on" : "off");
   if (the_patcher_config.clientmode == unofficial) {
     log("unofficial server settings:\n");
     log("  host:   %s\n", default_unofficial_client_settings.host);
@@ -177,7 +193,129 @@ bool get_enabled() {
   return atomic_load(enabled);
 }
 
+#define max(a,b) ((a) > (b) ? (a) : (b))
+// so, it's possible to receive a backlog of clientpings
+// from the same client within the same tick; ideally,
+// this wouldn't take the max of them, but the minimum.
+// but then we would have to pass a client ID and maintain
+// a table..
+//
+// it's worth noting that the "default" behavior of the
+// days behind handler does this too.
+// (I'm pretty sure of this. loading from current game state).
+//
+// :todo I can resolve the specific client for a specific day,
+//       using r13 (GetHuman).
+//
+// :note it looks like player_ids are just sequential integers, which makes my
+//       life so much easier
+void handle_clientping(int days_behind, int game_day, int ping_day, int player_id) {
+  speedcontroller* c = the_speedcontroller;
+  // it's a bit of a hack, but it needs
+  // to reset, and this works.
+  // int day = get_current_day_of_month();
+  // if (day != c->last_day_days_behind) {
+  //   c->last_day_days_behind = day;
+  //   c->days_behind = days_behind;
+  // } else {
+  //   c->days_behind = c->days_behind > days_behind ? c->days_behind : days_behind;
+  // }
+  // // this is a crude filter to remove the pings that originate with
+  // // the host.
+  // if (days_behind > 0) {
+  //   c->last_behind_ping_day = ping_day;
+  // }
+  if (player_id != 1) {
+    debug("handle_clientping:\n");
+    debug("  current day:   %d\n", get_current_total_days());
+    debug("  game day:      %d\n", game_day);
+    debug("  ping day:      %d\n", ping_day);
+    debug("  days behind:   %d\n", days_behind);
+    debug("  player id:     %d\n", player_id);
+  }
+
+  if (c->oldest_ping_day_player == -1) {
+    c->oldest_ping_day = ping_day;
+    c->oldest_ping_day_player = player_id;
+    return;
+  }
+
+  if (ping_day < c->oldest_ping_day) {
+    c->oldest_ping_day = ping_day;
+    c->oldest_ping_day_player = player_id;
+    return;
+  }
+
+  if (player_id == c->oldest_ping_day_player && ping_day > c->oldest_ping_day) {
+    c->oldest_ping_day = ping_day;
+    c->oldest_ping_day_player = player_id;
+    return;
+  }
+}
+
+void speed_control() {
+  // :todo check am host?
+  if (the_speedcontrolmode == speedcontrol_on) {
+    speedcontroller* c = the_speedcontroller;
+    int day = get_current_day_of_month();
+    if (c->last_day == -1) {
+      c->last_day = day;
+      c->last_now = nowms();
+    } else {
+      if (day != c->last_day) {
+        c->last_day = day;
+        // double t = nowms();
+        // double dt = t - c->last_now;
+        // c->last_now = t;
+
+        // // :todo get current speed
+        // if (dt >= 2000) {
+        //   return;
+        // }
+        // if (c->dtavg == -1) {
+        //   c->dtavg = dt;
+        // } else {
+        //   c->dtavg = .6*c->dtavg + .4*dt;
+        // }
+
+        int days_behind_lower_speed = get_days_behind_lower_speed_setting();
+        double days_behind_penalty = 0.;
+        int days_behind = 0;
+        if (c->oldest_ping_day != -1) {
+          int days_behind = get_current_total_days() - c->oldest_ping_day;
+          double max_penalty = 800.;
+          int day_buffer = 3;
+          int threshold = days_behind_lower_speed-day_buffer;
+          if (days_behind >= threshold) { // :todo :hack
+            days_behind_penalty = max_penalty*((double)(days_behind - threshold))/((double)day_buffer);
+          }
+        }
+
+        // double d0 = c->dtavgtarget - dt;
+        // double d1 = c->dtavgtarget - c->dtavg;
+        // double tosleep = c->sleepavg + .5*d0 + .5*d1 + days_behind_penalty;
+        // double tosleep = max(.5*c->sleepavg, days_behind_penalty);
+        //
+        // :note this would smooth out the penalty, but we opt
+        //       to just go fast.
+        // double tosleep = max(.7*c->sleepavg, days_behind_penalty);
+        double tosleep = days_behind_penalty;
+        // c->sleepavg = tosleep;
+        debug("speed control:\n");
+        debug("  oldest player: %d\n", c->oldest_ping_day_player);
+        debug("  oldest ping:   %d\n", c->oldest_ping_day);
+        debug("  current day:   %d\n", get_current_total_days());
+        debug("  tosleep:       %ld\n", (long) tosleep);
+        if (tosleep > 5) {
+          sleepms(tosleep);
+        }
+      }
+    }
+  }
+}
+
 bool dynamic_should_run_hook() {
+  speed_control();
   switch (the_patcher_config.patchmode) {
   case dynamic:
     int day = 1+get_current_day_of_month();
