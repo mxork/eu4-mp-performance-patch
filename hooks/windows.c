@@ -130,7 +130,6 @@ int get_current_total_days() {
 int get_days_behind_lower_speed_setting() {
   // 0x14233fbfc
   int lower_speed =  *((int*)(module_base+0x0233fbfc));
-  log("lower_speed setting: %d\n", lower_speed);
   return lower_speed;
 }
 
@@ -312,7 +311,6 @@ void dopatch() {
   hook4returnalt = module_base + 0xb7a01a;
   // 0x14233fc38
   hook4ndefine = module_base + 0x0233fc38;
-  log("hook4ndefine: %d\n", *((int32_t*)hook4ndefine));
 }
 
 // BOOL VirtualProtect(
