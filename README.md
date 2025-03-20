@@ -3,24 +3,23 @@
 This mod contains:
 
 1. a custom version of the nakama-cpp client library
-2. binary patches to reduce the frequency of the game checksum code, which bottlenecks on a single cpu.
-3. a small custom mp server (`runk`) which emulates the necessary parts of a Nakama server, but with no tick latency for sending match data.
+2. binary patches to reduce the frequency of the game checksum code, which bottlenecks on a single cpu. (`--fastmp`)
+3. binary patches which dynamically adjust the host player's game speed to prevent the endlessly annoying "Player X is lagging behind". (`--speedcontrol`)
+4. a small custom mp server (`runk`) which emulates the necessary parts of a Nakama server, but with no tick latency for sending match data.
 
 Windows and Linux versions are posted. Both were written and tested against the Steam versions of the game, but I think they would work on other versions. Mac users, sorry. Ping me if you want to write a port.
 
 ## Installation
 
-To try it out, you need to place the two libraries (nakama-cpp and libpatcher) into your game folder, then start the game with Nakama MP enabled and :
+To try it out, you need to place the two libraries (nakama-cpp and libpatcher) into your game folder, then start the game with Nakama MP enabled and:
 
 ```
 # gotcha: if you use the paradox launcher, it won't pass arguments to the game.
 #         make sure you're calling eu4.exe directly.
-> eu4.exe -nakamamp -unofficialmp
+> eu4.exe -steammp -fastmp -speedcontrol
 ```
 
 You should probably back up the original version of the nakama-cpp library.
-
-The patch could in theory work with the official servers, but I didn't want to get anyone in trouble or accidentally spam Paradox if the patch misbehaves. So, by default, it will connect to an instance of the custom MP server I have running in The Cloud.
 
 If you want to run a local version of the server, the `runk.exe` binary binds to port 7350 by default. To get the game to connect to it:
 
@@ -50,17 +49,34 @@ The patcher performs sanity checks before applying the patch. If it fails, it wi
 EU4 multiplayer performance is mostly determined by three factors:
 
 1. Network latency (duh). This isn't just "ordinary" network ping; it includes (arguably unnecessary) processing latency introduced by the multiplayer sever.
-2. Single-core cpu performance. EU4 is actually quite multi-threaded in single player, but multiplayer runs a checksum on the game state every single day. This is bottle-necked on just one CPU, and is a major reason why multiplayer runs slower.
-3. The settings `DAYS_BEHIND_LOWER_SPEED` and `DAYS_BEHIND_PAUSE` from defines.lua. These have reasonable defaults, but if you have a fast machine or higher network latency to other players in your game, the defaults essentially guarantees you can't run at higher game speeds.
+3. Single-core cpu performance. EU4 is actually quite multi-threaded in single player, but multiplayer runs a checksum on the game state every single day. This is bottle-necked on just one CPU, and is a major reason why multiplayer runs slower.
+4. The settings `DAYS_BEHIND_LOWER_SPEED` and `DAYS_BEHIND_PAUSE` from defines.lua. These have reasonable defaults, but if you have a fast machine or higher network latency to other players in your game, the defaults essentially guarantees you can't run at higher game speeds.
 
 `runk` eliminates most processing latency from the server by immediately forwarding match data when received. The DLL patch turns off the daily checksum. An optional steam mod (linked below) adjusts the `DAYS_BEHIND*` settings to be more forgiving.
 
-### Note on the public server
+### Speed controller
 
-The cloud instance is running in some north-eastern North American Google cloud region. Latency improvements won't be as impressive if you are on another continent, but Western Europe
-should still be better-than-official. Eliminating the process latency compensates for the longer round-trip.
+For the most part, I don't think the EU4 codebase is all that bad, and I'm reluctant to bash code without understanding the context behind it.
+That said, I can say with moderate confidence that the built-in lag handler is not good. It's not good in an abstract code-design sense. It's not
+good in that it leads to bad UX: annoying pop-ups and bad debouncing (it can trigger multiple times, going straight from speed 5 to speed 2 when speed 4 would have been enough).
+It's not good in that it seems oblivious about how the underlying network stack actually runs.
 
-If you have a group in another region and want to try it out, let me know (I'm monitoring the eu4-modding discord). Deploying another server is cheap, quick, easy.
+The speed controller included in this mod treats the current game speed as a maximum. If clients begin to lag behind by more than 5 days, it will start slowing down the
+speed at which the host is processing turns *without* changing the speed setting (if you are on speed 5, it will stay on speed 5). More lag will reduce the speed even more.
+If the clients catch up, the speed goes up again.
+
+This approach makes it a lot easier to run at a consistently higher speed. The vanilla speed settings are discrete:
+
+1. speed 1 runs at one day per 2 seconds
+2. speed 2 at one day per 1 second
+3. speed 3 at one day per 500ms
+4. speed 4 at one day per 250ms
+5. speed 5 as fast as the host can go
+
+But what if everyone in the game can run at one day every 600ms? Well, in the base game, speed 3 is too fast, so you're stuck running on speed 2,
+which is a massive slowdown. With this mod, you can run at whatever speed your players can keep up with.
+
+The speed controller only needs to be run by the host, and should be completely compatible with all versions of the game.
 
 ### Building
 
@@ -73,8 +89,7 @@ That said, building the `nakama-cpp` library is a real pain, particularly on win
 `runk` does the bare minimum to emulate the official Nakama servers. Currently, it does *not* support:
 
 1. game passwords
-2. hot join
-3. any out-of-sync detection
+2. out-of-sync detection
 
 And probably a lot else besides starting a game, other players joining (in the lobby), and sending data between players.
 
