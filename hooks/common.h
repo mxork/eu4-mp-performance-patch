@@ -27,7 +27,6 @@ enum speedcontrolmode {speedcontrol_off, speedcontrol_on};
 extern enum speedcontrolmode the_speedcontrolmode;
 typedef struct speedcontroller {
   int last_day;
-  double last_now;
   int oldest_ping_day;
   int32_t oldest_ping_day_player;
 } speedcontroller;

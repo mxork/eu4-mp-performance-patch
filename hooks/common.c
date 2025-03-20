@@ -41,7 +41,6 @@ void on_load() {
 
 void speedcontroller_set_defaults() {
   the_speedcontroller->last_day = -1;
-  the_speedcontroller->last_now = -1;
   the_speedcontroller->oldest_ping_day = -1;
   the_speedcontroller->oldest_ping_day_player = -1;
 }
@@ -110,7 +109,36 @@ void the_patcher_config_init() {
     } else if (strncmp(_my_argv[i], "-useunofficialmpserver", 22) == 0
                || strncmp(_my_argv[i], "--useunofficialmpserver", 23) == 0) {
       the_patcher_config.clientmode = unofficial;
-    } else if (strncmp(_my_argv[i], "-speedcontrol", 13) == 0
+    }
+    // :todo
+    // else if (strncmp(_my_argv[i], "-speedcontrol-throttle-start=", 29) == 0
+    //            || strncmp(_my_argv[i], "--speedcontrol-throttle-start=", 30) == 0) {
+    //   char* the_arg = _my_argv[i];
+    //   long n = strcspn(the_arg, " ");
+    //   the_arg[n] = '\0';
+    //   char* the_number = strchr(the_arg, '=')+1;
+    //   long value = strtol(the_number, 0, 10);
+    //   log("throttle start: %ld\n", value);
+    // }
+    // else if (strncmp(_my_argv[i], "-speedcontrol-throttle-peak=", 28) == 0
+    //            || strncmp(_my_argv[i], "--speedcontrol-throttle-peak=", 29) == 0) {
+    //   char* the_arg = _my_argv[i];
+    //   long n = strcspn(the_arg, " ");
+    //   the_arg[n] = '\0';
+    //   char* the_number = strchr(the_arg, '=')+1;
+    //   long value = strtol(the_number, 0, 10);
+    //   log("throttle peak: %ld\n", value);
+    // }
+    // else if (strncmp(_my_argv[i], "-speedcontrol-throttle-amount=", 30) == 0
+    //            || strncmp(_my_argv[i], "--speedcontrol-throttle-amount=", 31) == 0) {
+    //   char* the_arg = _my_argv[i];
+    //   long n = strcspn(the_arg, " ");
+    //   the_arg[n] = '\0';
+    //   char* the_number = strchr(the_arg, '=')+1;
+    //   long value = strtol(the_number, 0, 10);
+    //   log("throttle peak: %ld\n", value);
+    // }
+    else if (strncmp(_my_argv[i], "-speedcontrol", 13) == 0
                || strncmp(_my_argv[i], "--speedcontrol", 14) == 0) {
       the_speedcontrolmode = speedcontrol_on;
     }
@@ -210,6 +238,12 @@ bool get_enabled() {
 //
 // I tried simpler approaches, but, in the end, this was the minimal
 // mechanism that just feels *good* and automagical.
+//
+// clientpingexecute is only ever called on the host, so we can use the
+// "-1" fields to guard against speedcontrolling on clients.
+//
+// :todo I'm almost 100% sure that everything is safely reinitialized on game
+//       reset, because eu4 restarts. worth checking.
 void handle_clientping(int days_behind, int game_day, int ping_day, int player_id) {
   speedcontroller* c = the_speedcontroller;
   if (player_id != 1) {
@@ -244,26 +278,36 @@ void speed_control() {
   // :todo check am host?
   if (the_speedcontrolmode == speedcontrol_on) {
     speedcontroller* c = the_speedcontroller;
+    // :note this guards against running before any pings
+    //       received, but also prevents speedcontrol on
+    //       clients.
+    if (c->oldest_ping_day_player == -1) {
+      return;
+    }
+
     int day = get_current_day_of_month();
     if (c->last_day == -1) {
       c->last_day = day;
-      c->last_now = nowms();
     } else {
+      // only run on first call of day
       if (day != c->last_day) {
         c->last_day = day;
 
         int days_behind_lower_speed = get_days_behind_lower_speed_setting();
         double days_behind_penalty = 0.;
-        int days_behind = 0;
-        if (c->oldest_ping_day != -1) {
-          int days_behind = get_current_total_days() - c->oldest_ping_day;
-          // :note magic constants
-          double max_penalty = 800.;
-          int day_buffer = 3;
-          int threshold = days_behind_lower_speed-day_buffer;
-          if (days_behind >= threshold) {
-            days_behind_penalty = max_penalty*((double)(days_behind - threshold))/((double)day_buffer);
+        int days_behind = get_current_total_days() - c->oldest_ping_day;
+        // :note magic constants
+        double max_penalty = 1200.;
+        int day_buffer = days_behind_lower_speed/2;
+        int threshold = days_behind_lower_speed-day_buffer;
+        if (days_behind >= threshold) {
+          double k = ((double)(days_behind - threshold))/((double)day_buffer);
+          // just, being careful
+          if (k > 1.0) {
+            k = 1.0;
           }
+          // :todo consider other powers of k
+          days_behind_penalty = max_penalty*k*k;
         }
 
         double tosleep = days_behind_penalty;
