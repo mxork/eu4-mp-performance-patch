@@ -1,9 +1,9 @@
-from alpine:3.21
+from debian:12-slim
 
 run mkdir /build
 workdir /build
 
-run apk add gcc mingw-w64-gcc bash libc-dev
+run apt-get update && apt-get install -y gcc gcc-mingw-w64-x86-64 bash libc-dev
 
 copy . /build
 workdir /build
