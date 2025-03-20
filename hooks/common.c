@@ -116,6 +116,11 @@ void the_patcher_config_init() {
     }
   }
 
+  if (the_patcher_config.patchmode == disabled && the_speedcontrolmode == speedcontrol_on) {
+    log("speed control requested, but patch is disabled.\n");
+    log("  -> setting patch mode to patched_but_disabled\n");
+  }
+
   log("patch mode:          %s\n", unparse_patchmode(the_patcher_config.patchmode));
   log("client mode:         %s\n", the_patcher_config.clientmode == official ? "official" : "unofficial");
   log("speed control mode:  %s\n", the_speedcontrolmode == speedcontrol_on ? "on" : "off");
