@@ -3,3 +3,5 @@
 *.a
 *.lib
 .ccls_cache
+out
+_build
