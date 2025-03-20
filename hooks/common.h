@@ -28,12 +28,6 @@ extern enum speedcontrolmode the_speedcontrolmode;
 typedef struct speedcontroller {
   int last_day;
   double last_now;
-  // double dtavg;
-  // double dtavgtarget;
-  // double sleepavg;
-  // int days_behind;
-  // int last_day_days_behind;
-  // int last_behind_ping_day;
   int oldest_ping_day;
   int32_t oldest_ping_day_player;
 } speedcontroller;

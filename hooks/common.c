@@ -194,37 +194,18 @@ bool get_enabled() {
 }
 
 #define max(a,b) ((a) > (b) ? (a) : (b))
-// so, it's possible to receive a backlog of clientpings
-// from the same client within the same tick; ideally,
-// this wouldn't take the max of them, but the minimum.
-// but then we would have to pass a client ID and maintain
-// a table..
+
+// this is called from hook4 (clientpingexecute), and tracks the
+// oldest (most behind) player, and how far behind they are.
 //
-// it's worth noting that the "default" behavior of the
-// days behind handler does this too.
-// (I'm pretty sure of this. loading from current game state).
+// this feature is more intertwined with the binary, in particular the
+// need for get_current_total_days and offset wrangling to get the player
+// id into this function.
 //
-// :todo I can resolve the specific client for a specific day,
-//       using r13 (GetHuman).
-//
-// :note it looks like player_ids are just sequential integers, which makes my
-//       life so much easier
+// I tried simpler approaches, but, in the end, this was the minimal
+// mechanism that just feels *good* and automagical.
 void handle_clientping(int days_behind, int game_day, int ping_day, int player_id) {
   speedcontroller* c = the_speedcontroller;
-  // it's a bit of a hack, but it needs
-  // to reset, and this works.
-  // int day = get_current_day_of_month();
-  // if (day != c->last_day_days_behind) {
-  //   c->last_day_days_behind = day;
-  //   c->days_behind = days_behind;
-  // } else {
-  //   c->days_behind = c->days_behind > days_behind ? c->days_behind : days_behind;
-  // }
-  // // this is a crude filter to remove the pings that originate with
-  // // the host.
-  // if (days_behind > 0) {
-  //   c->last_behind_ping_day = ping_day;
-  // }
   if (player_id != 1) {
     debug("handle_clientping:\n");
     debug("  current day:   %d\n", get_current_total_days());
@@ -264,43 +245,22 @@ void speed_control() {
     } else {
       if (day != c->last_day) {
         c->last_day = day;
-        // double t = nowms();
-        // double dt = t - c->last_now;
-        // c->last_now = t;
-
-        // // :todo get current speed
-        // if (dt >= 2000) {
-        //   return;
-        // }
-        // if (c->dtavg == -1) {
-        //   c->dtavg = dt;
-        // } else {
-        //   c->dtavg = .6*c->dtavg + .4*dt;
-        // }
 
         int days_behind_lower_speed = get_days_behind_lower_speed_setting();
         double days_behind_penalty = 0.;
         int days_behind = 0;
         if (c->oldest_ping_day != -1) {
           int days_behind = get_current_total_days() - c->oldest_ping_day;
+          // :note magic constants
           double max_penalty = 800.;
           int day_buffer = 3;
           int threshold = days_behind_lower_speed-day_buffer;
-          if (days_behind >= threshold) { // :todo :hack
+          if (days_behind >= threshold) {
             days_behind_penalty = max_penalty*((double)(days_behind - threshold))/((double)day_buffer);
           }
         }
 
-        // double d0 = c->dtavgtarget - dt;
-        // double d1 = c->dtavgtarget - c->dtavg;
-        // double tosleep = c->sleepavg + .5*d0 + .5*d1 + days_behind_penalty;
-        // double tosleep = max(.5*c->sleepavg, days_behind_penalty);
-        //
-        // :note this would smooth out the penalty, but we opt
-        //       to just go fast.
-        // double tosleep = max(.7*c->sleepavg, days_behind_penalty);
         double tosleep = days_behind_penalty;
-        // c->sleepavg = tosleep;
         debug("speed control:\n");
         debug("  oldest player: %d\n", c->oldest_ping_day_player);
         debug("  oldest ping:   %d\n", c->oldest_ping_day);
