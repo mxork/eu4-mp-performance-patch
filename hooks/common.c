@@ -296,6 +296,18 @@ void speed_control() {
         int days_behind_lower_speed = get_days_behind_lower_speed_setting();
         double days_behind_penalty = 0.;
         int days_behind = get_current_total_days() - c->oldest_ping_day;
+
+        // :hack this branch is responsible for ignoring players on disconnect
+        //       will sort itself out on next clientping, and we've already
+        //       triggered (or are going to trigger) the main lag handler.
+        if (days_behind > get_days_behind_lower_speed_setting()) {
+          debug("exceeded days behind limit, probably due to client disconnect\n");
+          debug("resetting speedcontroller\n");
+          days_behind = 0;
+          c->oldest_ping_day = -1;
+          c->oldest_ping_day_player = -1;
+        }
+
         // :note magic constants
         double max_penalty = 1200.;
         int day_buffer = days_behind_lower_speed/2;

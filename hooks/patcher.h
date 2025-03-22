@@ -41,7 +41,7 @@ client_settings get_unofficial_client_settings();
 // logging
 #define log(...) _log(__VA_ARGS__)
 #define info(...) _log(__VA_ARGS__)
-#define debug(...)
+#define debug(...) _log(__VA_ARGS__)
 #define err(...) _log(__VA_ARGS__)
 void _log(const char* fmt, ...);
 #ifdef __cplusplus
