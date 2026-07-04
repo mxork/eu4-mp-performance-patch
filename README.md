@@ -11,15 +11,18 @@ Windows and Linux versions are posted. Both were written and tested against the 
 
 ## Installation
 
-To try it out, you need to download the two libraries (nakama-cpp and libpatcher) from [releases](https://github.com/mxork/eu4-mp-performance-patch/releases) and copy them into your game folder. Then start the game:
-
-```
-# gotcha: if you use the paradox launcher, it won't pass arguments to the game.
-#         make sure you're calling eu4.exe directly.
-> eu4.exe -steammp -fastmp -speedcontrol
-```
-
+To try it out, you need to download the two libraries (nakama-cpp and libpatcher) from [releases](https://github.com/mxork/eu4-mp-performance-patch/releases) and copy them into your game folder.
 You should probably back up the original version of the nakama-cpp library.
+
+Then, start the game:
+
+```
+> eu4.exe --steammp --fastmp --speedcontrol
+```
+
+Or you can add the command line flags to your steam launch options:
+
+![Steam launch options](./launchoptions.png)
 
 If you want to run a local version of the server, the `runk.exe` binary binds to port 7350 by default. To get the game to connect to it:
 
@@ -55,11 +58,6 @@ EU4 multiplayer performance is mostly determined by three factors:
 `runk` eliminates most processing latency from the server by immediately forwarding match data when received. The DLL patch turns off the daily checksum. An optional steam mod (linked below) adjusts the `DAYS_BEHIND*` settings to be more forgiving.
 
 ### Speed controller
-
-For the most part, I don't think the EU4 codebase is all that bad, and I'm reluctant to bash code without understanding the context behind it.
-That said, I can say with moderate confidence that the built-in lag handler is not good. It's not good in an abstract code-design sense. It's not
-good in that it leads to bad UX: annoying pop-ups and bad debouncing (it can trigger multiple times, going straight from speed 5 to speed 2 when speed 4 would have been enough).
-It's not good in that it seems oblivious about how the underlying network stack actually runs.
 
 The speed controller included in this mod treats the current game speed as a maximum. If clients begin to lag behind by more than 5 days, it will start slowing down the
 speed at which the host is processing turns *without* changing the speed setting (if you are on speed 5, it will stay on speed 5). More lag will reduce the speed even more.
@@ -97,7 +95,7 @@ And probably a lot else besides starting a game, other players joining (in the l
 
 I'm still figuring out how this works in vanilla, but it seems to be driven by the server. The official Nakama server states that it can drop match data messages if its buffers fill up, and I suspect (with low confidence) that this is the main cause of OOS on official servers.
 
-It's worth mentioning that the daily checksums are seem to be never (rarely?) used during normal play. I've tried running a vanilla host and a guest with deliberately corrupted checksums on the official servers, and never triggered an OOS. As I said, still figuring out how this is supposed to work.
+It's worth mentioning that the daily checksums seem to be never (rarely?) used during normal play. I've tried running a vanilla host and a guest with deliberately corrupted checksums on the official servers, and never triggered an OOS. As I said, still figuring out how this is supposed to work.
 
 ## Security
 
